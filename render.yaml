@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: instagram-backend
+    env: node
+    rootDir: instagram-backend
+    buildCommand: npm ci
+    startCommand: node index.js
+    autoDeploy: true
+
+  - type: static
+    name: instagram-frontend
+    rootDir: instagram-homePage
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
