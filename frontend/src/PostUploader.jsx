@@ -12,9 +12,9 @@ import {
   Alert,
 } from "@mui/material";
 
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./firebase";
-
+//import { onAuthStateChanged } from "firebase/auth";
+//import { auth } from "./firebase";
+import Cookies from "js-cookie";
 function PostUploader({ open, onClose, onNewPost = () => {} }) {
   // State variables
   const [user, setUser] = useState(null);
@@ -25,11 +25,9 @@ function PostUploader({ open, onClose, onNewPost = () => {} }) {
   const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
 
    // Monitor Firebase user
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
+    useEffect(() => {
+    const userCookie = Cookies.get("user");
+    if (userCookie) setUser(JSON.parse(userCookie));
   }, []);
   useEffect(() => {
     if (!open) {
@@ -73,7 +71,7 @@ const handleSubmit = async () => {
   formData.append("profileUrl", user.photoURL || "");
   formData.append("caption", caption);
   formData.append("userId", user.uid);
-
+  formData.append("email", user.email);
   try {
     const res = await fetch("http://localhost:5000/api/posts/upload", {
       method: "POST",
@@ -169,3 +167,4 @@ const handleSubmit = async () => {
 }
 
 export default PostUploader;
+
