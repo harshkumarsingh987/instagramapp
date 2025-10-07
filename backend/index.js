@@ -1,197 +1,236 @@
-const multer = require("multer");
+
+// ---------------------------
 const express = require("express");
 const mongoose = require("mongoose");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
+const cookieParser = require("cookie-parser");
+
+// Models & Routes
 const Post = require("./models/Post");
 const User = require("./models/User");
 const Story = require("./models/Story");
-const cors = require("cors");
-require("dotenv").config();
-const fs = require("fs");
-const path = require("path");
 const postRoutes = require("./routes/post");
-const storyRoutes = require("./routes/story")
+const storyRoutes = require("./routes/story");
 const userRoutes = require("./routes/user");
+
+// ---------------------------
+// CONFIGURATION
+// ---------------------------
+dotenv.config();
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 5000;
+const BACKEND_URL = process.env.BACKEND_URL || `http://localhost:${PORT}`;
+
+// ---------------------------
+// MIDDLEWARES
+// ---------------------------
+app.use(
+  cors({
+    origin: ["http://localhost:5173"], // ✅ your frontend URL
+    credentials: true,                 // ✅ allow cookies & credentials
+  })
+);
+
 app.use(express.json());
+app.use(cookieParser());
 app.use("/uploads", express.static("uploads"));
+
+// Ensure upload directories exist
 const uploadPath = path.join(__dirname, "uploads");
-app.use("/api/posts", postRoutes);
-app.use("/api/story",storyRoutes);
-app.use("/api/users", userRoutes);
-// Create uploads folder if it doesn't exist
-if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath);
-}
+if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
 
+// ---------------------------
+// DATABASE CONNECTION
+// ---------------------------
+mongoose
+  .connect(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/instagram", {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log(" Connected to MongoDB"))
+  .catch((err) => console.error(" MongoDB connection error:", err.message));
 
-// ✅ Use BACKEND_URL environment variable
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
+// ---------------------------
+// ROUTES
+// ---------------------------
 
-
-// 👉 Add this line to check the MongoDB connection string
-console.log("MongoDB URI:", process.env.MONGODB_URI);
-
-mongoose.connect(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/instagram", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log(" Connected to MongoDB"))
-.catch((err) => console.error(" MongoDB connection error:", err.message));
-
-// Add this temporary route for debugging
-app.get("/api/users", async (req, res) => {
-  const users = await User.find();
-  res.json(users);
-});
-
-
-
-app.post("/api/users/update-profile-pic", async (req, res) => {
-  const { userId, profileUrl } = req.body;
-
+// Register / Signup
+app.post("/api/auth/signup", async (req, res) => {
   try {
-    await User.findByIdAndUpdate(userId, { profileUrl });
-    res.status(200).json({ message: "Profile picture updated" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update profile picture" });
-  }
-});
-// already present in your code
+    const { username, email, password, mobile, dob } = req.body;
 
-app.post("/api/users/create-dummy", async (req, res) => {
-  try {
+    if (!email || !password || !mobile || !dob) {
+      return res.status(400).json({ error: "Email and password required" });
+    }
+  if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 6 characters long." });
+    }
+
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      return res
+        .status(400)
+        .json({ error: "Please enter a valid 10-digit mobile number." });
+    }
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser)
+      return res.status(400).json({ error: "Email already registered" });
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create new user
     const newUser = new User({
-      username: "harshsingh",
-      profileUrl: ""
+      username: username || email.split("@")[0],
+      email,
+      password: hashedPassword,
+       mobile,
+      dob,
     });
 
-    const savedUser = await newUser.save();
-    res.status(201).json({ message: "Dummy user created", user: savedUser });
+    await newUser.save();
+
+    // Generate JWT
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    // ✅ Set cookie (optional but useful)
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    res.status(201).json({
+      message: "Signup successful",
+      token,
+        user: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+        mobile: newUser.mobile,
+        dob: newUser.dob,
+        profileUrl: newUser.profileUrl,
+      },
+    });
   } catch (err) {
-    res.status(500).json({ error: "Failed to create user" });
+    console.error("Signup error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// Multer setup for local file storage
+// Login
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ error: "Email and password required" });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword)
+      return res.status(400).json({ error: "Invalid credentials" });
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    // ✅ Set cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      user,
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ---------------------------
+// MULTER CONFIGURATION
+// ---------------------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`),
 });
 const upload = multer({ storage });
-// Multer setup for story uploads
-const storystorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const storyPath = path.join(__dirname, "uploads/stories");
-    if (!fs.existsSync(storyPath)) {
-      fs.mkdirSync(storyPath);
-    }
-    cb(null, "uploads/stories/");
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-const storyupload = multer({ storage: storystorage });
 
-// Multer setup for profile picture upload
+const storyStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const storyPath = path.join(__dirname, "uploads/stories");
+    if (!fs.existsSync(storyPath)) fs.mkdirSync(storyPath, { recursive: true });
+    cb(null, storyPath);
+  },
+  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
+});
+const storyUpload = multer({ storage: storyStorage });
+
 const profileStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
+  destination: (req, file, cb) => {
     const profilePath = path.join(__dirname, "uploads/profiles");
-    if (!fs.existsSync(profilePath)) {
-      fs.mkdirSync(profilePath, { recursive: true });
-    }
+    if (!fs.existsSync(profilePath)) fs.mkdirSync(profilePath, { recursive: true });
     cb(null, profilePath);
   },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "_" + file.originalname);
-  }
+  filename: (req, file, cb) => cb(null, Date.now() + "_" + file.originalname),
 });
-
 const profileUpload = multer({ storage: profileStorage });
 
+// ---------------------------
+// POSTS & STORIES
+// ---------------------------
+app.use("/api/posts", postRoutes);
+app.use("/api/story", storyRoutes);
+app.use("/api/users", userRoutes);
 
-// Upload Story
-app.post("/api/stories/upload", storyupload.single("story"), async (req, res) => {
+// Upload story
+app.post("/api/stories/upload", storyUpload.single("story"), async (req, res) => {
   try {
     const { userId, username, profileUrl } = req.body;
     const story = new Story({
       userId,
       username,
       profileUrl,
-      storyUrl: `/uploads/stories/${req.file.filename}`,
+      storyUrl: `${BACKEND_URL}/uploads/stories/${req.file.filename}`,
     });
     await story.save();
     res.status(201).json(story);
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Server Error");
+    console.error("Story upload failed:", err);
+    res.status(500).send("Server error");
   }
 });
-
-// Fetch all stories (24 hour valid)
-app.get("/api/stories", async (req, res) => {
-
-  try {
-    const stories = await Story.find();
-    const filtered = stories.filter(story => {
-      const now = new Date();
-      return now - story.createdAt < 24 * 60 * 60 * 1000;
-    });
-    res.json(filtered);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Server Error");
-  }
-});
-
-
-
-// ➤ Update profile URL (text-based)
-app.put("/api/users/:id/profile", profileUpload.single("profilePic"), async (req, res) => {
-  const userId = req.params.id;
-
-  // Check if multer uploaded file
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
-  }
-
-  // Generate profile URL correctly
-
-  const profileUrl = `${BACKEND_URL}/uploads/profiles/${req.file.filename}`; // ✅ corrected
-
-  try {
-    // Update user document
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { profileUrl },
-      { new: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    res.status(200).json({ message: "Profile updated", user: updatedUser });
-  } catch (err) {
-    console.error("Error updating user profile:", err);
-    res.status(500).json({ error: "Failed to update profile" });
-  }
-});
-
-
 
 // Upload post
 app.post("/api/posts/upload", upload.single("image"), async (req, res) => {
-  const { caption, userId } = req.body;
-  if (!req.file || !userId) return res.status(400).json({ error: "Image and userId are required" });
-
   try {
-    const user = await User.findById(userId);
+    const { caption, userId, email } = req.body;
+    if (!req.file || !userId)
+      return res.status(400).json({ error: "Image and userId required" });
+
+    const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const imageUrl = `${BACKEND_URL}/uploads/${req.file.filename}`; // ✅ corrected
+    const imageUrl = `${BACKEND_URL}/uploads/${req.file.filename}`;
 
     const newPost = new Post({
       username: user.username,
@@ -209,111 +248,14 @@ app.post("/api/posts/upload", upload.single("image"), async (req, res) => {
   }
 });
 
-// ➤ Upload post with image
-/*
-app.post("/api/posts/upload", upload.single("image"), async (req, res) => {
-  const { username, profileUrl, caption, userId } = req.body;
-
-  if (!req.file || !userId) {
-    return res.status(400).json({ error: "Image and userId are required" });
-  }
-
-  //const imageUrl = `http://localhost:5000/uploads/${req.file.filename}`;
-
-  const profileUrl = `${BACKEND_URL}/uploads/profiles/${req.file.filename}`; // ✅ corrected
-  try {
-    const newPost = new Post({
-      username,
-      profileUrl,
-      caption,
-      userId,
-      imageUrl,
-    });
-
-    const savedPost = await newPost.save();
-    res.status(201).json({ message: "Post uploaded", post: savedPost });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to upload post" });
-  }
-});
-*/
- 
-// Get all posts
-app.get("/api/posts", async (req, res) => {
-  try {
-    const posts = await Post.find().sort({ createdAt: -1 }); // newest first
-    res.json(posts);
-  } catch (err) {
-    console.error("Error fetching posts:", err);
-    res.status(500).json({ error: "Failed to fetch posts" });
-  }
-});
-
-app.post("/api/posts/upload", upload.single("image"), async (req, res) => {
-  const { caption, userId } = req.body;
-
-  if (!req.file || !userId) {
-    return res.status(400).json({ error: "Image and userId are required" });
-  }
-
-  try {
-    // ✅ Fetch user's current profile pic
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    const imageUrl = `http://localhost:5000/uploads/${req.file.filename}`;
-
-    const newPost = new Post({
-      username: user.username,
-      userId,
-      caption,
-      imageUrl,
-      profileUrl: user.profileUrl, // ✅ Store snapshot of current profile pic
-    });
-
-    const savedPost = await newPost.save();
-    res.status(201).json({ message: "Post uploaded", post: savedPost });
-  } catch (err) {
-    console.error("Upload failed:", err);
-    res.status(500).json({ error: "Failed to upload post" });
-  }
-});
-
-// DELETE a post by ID
-app.delete("/api/posts/:id", async (req, res) => {
-  try {
-    const deleted = await Post.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ error: "Post not found" });
-
-    res.status(200).json({ message: "Post deleted successfully" });
-  } catch (err) {
-    console.error("❌ Error deleting post:", err);
-    res.status(500).json({ error: "Failed to delete post" });
-  }
-});
-app.patch("/api/posts/like/:id", async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-    const userId = req.body.userId;
-
-    if (!post) return res.status(404).json({ message: "Post not found" });
-
-    if (post.likes.includes(userId)) {
-      post.likes = post.likes.filter((id) => id !== userId);
-    } else {
-      post.likes.push(userId);
-    }
-
-    await post.save();
-    res.status(200).json({ message: "Like updated", likes: post.likes });
-  } catch (err) {
-    res.status(500).json({ message: "Error updating like", error: err.message });
-  }
-});
+// ---------------------------
+// TEST ROUTE
+// ---------------------------
 app.get("/", (req, res) => {
-  res.send(" Instagram Clone Backend is running");
+  res.send(" Instagram Clone Backend is running!");
 });
 
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// ---------------------------
+// START SERVER
+// ---------------------------
+app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
