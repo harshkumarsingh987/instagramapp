@@ -1,13 +1,23 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
+// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true, // same as 0.0.0.0
-    port: process.env.PORT ? parseInt(process.env.PORT) : 5173,
+    // ✅ Allow both localhost (for development) and your Render domain
     allowedHosts: [
-      "instagramapp-1-mm3x.onrender.com" // your Render domain
-    ]
-  }
+      'localhost',
+      'instagramapp-1-lghe.onrender.com', // <-- your Render frontend URL
+    ],
+    port: 5173, // Default Vite port
+    // Optional: Proxy API calls during development
+    proxy: {
+      '/api': {
+        target: 'https://instagramapp-ygyz.onrender.com', // <-- your backend Render URL
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 });
