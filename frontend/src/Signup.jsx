@@ -1,19 +1,32 @@
 import React, { useState } from "react";
-import { TextField, Button, Box, Typography,Paper,Divider } from "@mui/material";
+import {
+  TextField,
+  Button,
+  Box,
+  Typography,
+  Paper,
+  Divider,
+  IconButton,
+  InputAdornment,
+} from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
+import InstagramIcon from "@mui/icons-material/Instagram";
 import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "./firebase"; // ✅ import your auth from firebase.js
-import InstagramIcon from "@mui/icons-material/Instagram";
-import "./Signup.css"; // ✅ Ensure you have a CSS file for styles
+import axios from "axios";
+import "./Signup.css";
+
 function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [mobile, setMobile] = useState("");
+  const [dob, setDob] = useState("");
   const navigate = useNavigate();
 
   const handleSignup = async () => {
-    if (!email || !password) {
-      alert("Fill all fields");
+    if (!email || !password || !mobile || !dob) {
+      alert("Please fill all fields.");
       return;
     }
 
@@ -22,17 +35,25 @@ function Signup() {
       return;
     }
 
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      alert("Please enter a valid 10-digit mobile number.");
+      return;
+    }
 
-      // Store user in cookies (optional)
-      Cookies.set("user", JSON.stringify(user), { expires: 7 });
+    try {
+      const res = await axios.post(
+        "http://localhost:5000/api/auth/signup",
+        { email, password, mobile, dob },
+        { withCredentials: true }
+      );
+
+      Cookies.set("token", res.data.token, { expires: 7 });
+      Cookies.set("user", JSON.stringify(res.data.user), { expires: 7 });
 
       navigate("/");
     } catch (error) {
       console.error("Signup error:", error);
-      alert("Signup failed: " + error.message);
+      alert(error.response?.data?.message || "Signup failed. Please try again.");
     }
   };
 
@@ -44,6 +65,7 @@ function Signup() {
           Sign up to see photos and videos from your friends.
         </Typography>
 
+        {/* Email */}
         <TextField
           fullWidth
           label="Email"
@@ -52,20 +74,63 @@ function Signup() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
+
+        {/* Mobile Number */}
         <TextField
           fullWidth
-          type="password"
+          label="Mobile Number"
+          margin="normal"
+          size="small"
+          value={mobile}
+          onChange={(e) => setMobile(e.target.value)}
+          inputProps={{ maxLength: 10 }}
+        />
+
+        {/* Date of Birth */}
+        <TextField
+          fullWidth
+          label="Date of Birth"
+          type="date"
+          margin="normal"
+          size="small"
+          value={dob}
+          onChange={(e) => setDob(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+
+        {/* Password with show/hide */}
+        <TextField
+          fullWidth
+          type={showPassword ? "text" : "password"}
           label="Password"
           margin="normal"
           size="small"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => setShowPassword(!showPassword)}
+                  edge="end"
+                >
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
         />
 
+        {/* Signup Button */}
         <Button
           fullWidth
           variant="contained"
-          sx={{ mt: 2, mb: 1, backgroundColor: "#0095f6" }}
+          sx={{
+            mt: 2,
+            mb: 1,
+            backgroundColor: "#0095f6",
+            "&:hover": { backgroundColor: "#007acc" },
+          }}
           onClick={handleSignup}
         >
           Sign Up
