@@ -1,4 +1,4 @@
- import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   BottomNavigation,
   BottomNavigationAction,
@@ -21,17 +21,24 @@ import SlideshowIcon from "@mui/icons-material/SlideshowOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import { pink } from "@mui/material/colors";
 import { useNavigate } from "react-router-dom";
-import { signOut } from "firebase/auth";
-import { auth } from "./firebase";
-import PostUploader from "./PostUploader.jsx"; // Ensure this exists
-import ProfileUpdater from "./ProfileUpdater.jsx"; // Adjust the path as needed
+import Cookies from "js-cookie";
+import PostUploader from "./PostUploader.jsx";
+import ProfileUpdater from "./ProfileUpdater.jsx";
 
-function Footer({ user }) {
+function Footer() {
   const [value, setValue] = useState(0);
   const [openPostModal, setOpenPostModal] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
+
+  // Get logged-in user from cookies
+  useEffect(() => {
+    const userCookie = Cookies.get("user");
+    if (userCookie) setUser(JSON.parse(userCookie));
+  }, []);
 
   const handleChange = (event, newValue) => {
     setValue(newValue);
@@ -48,8 +55,10 @@ function Footer({ user }) {
     setAnchorEl(null);
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  const handleLogout = () => {
+    // Clear cookies
+    Cookies.remove("user");
+    Cookies.remove("token");
     handleCloseMenu();
     navigate("/login");
   };
@@ -59,15 +68,10 @@ function Footer({ user }) {
     navigate("/signup");
   };
 
-  const [profileOpen, setProfileOpen] = useState(false);
-
-// Replace USER_ID with actual user._id from MongoDB
-// Place the ProfileUpdater and Button inside the return statement where appropriate, for example inside the Menu or as needed:
-
-const handleProfileUpdate = () => {
-  setProfileOpen(true);
-  handleCloseMenu();
-};
+  const handleProfileUpdate = () => {
+    setProfileOpen(true);
+    handleCloseMenu();
+  };
 
   return (
     <>
@@ -91,7 +95,7 @@ const handleProfileUpdate = () => {
             <BottomNavigationAction
               icon={
                 <Avatar
-                  src={user.photoURL || ""}
+                  src={user.profileUrl || ""}
                   alt="Profile"
                   sx={{ width: 24, height: 24 }}
                   onClick={handleClickAvatar}
@@ -123,14 +127,13 @@ const handleProfileUpdate = () => {
 
       {/* Avatar Dropdown Menu */}
       <Menu
-     
         anchorEl={anchorEl}
         open={open}
         onClose={handleCloseMenu}
         anchorOrigin={{ vertical: "top", horizontal: "right" }}
         transformOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        <MenuItem disabled>{user?.displayName || user?.email}</MenuItem>
+        <MenuItem disabled>{user?.username || user?.email}</MenuItem>
         <MenuItem onClick={handleLogout}>Logout</MenuItem>
         <MenuItem onClick={handleSignup}>Create New Account</MenuItem>
         <MenuItem>
@@ -139,8 +142,10 @@ const handleProfileUpdate = () => {
       </Menu>
 
       {/* Profile Updater Modal */}
-      <ProfileUpdater open={profileOpen} onClose={() => setProfileOpen(false)} userId={user?._id || "USER_ID"} />
+      <ProfileUpdater open={profileOpen} onClose={() => setProfileOpen(false)} userId={user?._id} />
     </>
   );
 }
+
 export default Footer;
+
