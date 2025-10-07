@@ -4,8 +4,9 @@ import { TextField, Button, Box, Typography,Paper,Divider, Snackbar } from "@mui
 import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 import InstagramIcon from "@mui/icons-material/Instagram";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "./firebase"; // Ensure this is set up correctly
+//import { signInWithEmailAndPassword } from "firebase/auth";
+//import { auth } from "./firebase"; // Ensure this is set up correctly
+import axios from "axios";
 import { Alert } from "@mui/material";
 
 function Login() {
@@ -33,11 +34,16 @@ function Login() {
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+    const res = await axios.post(
+        "http://localhost:5000/api/auth/login",
+        { email, password },
+        { withCredentials: true } // allows cookies
+      );
 
       // Set user in cookies (optional since Firebase already handles session)
-      Cookies.set("user", JSON.stringify(user), { expires: 7 });
+     
+      Cookies.set("token", res.data.token, { expires: 7 });
+        Cookies.set("user", JSON.stringify(res.data.user), { expires: 7 });
           // ✅ Show popup
     setSnackbarOpen(true);
 
