@@ -1,9 +1,10 @@
- const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
+// Comment subdocument schema
 const commentSchema = new mongoose.Schema(
   {
     userId: {
-      type: String,
+      type: String, // use string instead of ObjectId
       required: true,
     },
     username: {
@@ -19,14 +20,14 @@ const commentSchema = new mongoose.Schema(
       default: Date.now,
     },
   },
-  { _id: false }
+  { _id: false } // optional: prevent MongoDB from creating _id for each comment
 );
 
+// Post schema
 const postSchema = new mongoose.Schema(
   {
     userId: {
-      type: String,
-      ref: "User",
+      type: String, // use string instead of ObjectId
       required: true,
     },
     username: {
@@ -35,7 +36,7 @@ const postSchema = new mongoose.Schema(
     },
     profileUrl: {
       type: String,
-      default: "", // optional: default to blank
+      default: "",
     },
     caption: {
       type: String,
@@ -45,14 +46,10 @@ const postSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-
-    // ✅ Store likes as array of user IDs (for toggle, count, user-specific)
     likes: {
-      type: [String], // array of userId
+      type: [String], // array of user string IDs
       default: [],
     },
-
-    // ✅ Store comments as subdocuments with user info
     comments: {
       type: [commentSchema],
       default: [],
@@ -62,3 +59,4 @@ const postSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("Post", postSchema);
+
