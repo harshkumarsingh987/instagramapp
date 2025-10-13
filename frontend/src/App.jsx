@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Cookies from "js-cookie";
 import './App.css';
-import InstaLogin from "./login";
+import InstaLogin from "./Login";
 import Signup from "./Signup";
 import Header from "./Header";
 import Stories from "./Stories";
