@@ -149,12 +149,13 @@ app.post("/api/auth/login", async (req, res) => {
     });
 
     // ✅ Set cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+  res.cookie("token", token, {
+  httpOnly: true,
+  secure: false,     // ✅ MUST be false on localhost
+  sameSite: "lax",   // ✅ correct for local dev
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
+
 
     res.status(200).json({
       message: "Login successful",
@@ -204,7 +205,7 @@ app.use("/api/story", storyRoutes);
 app.use("/api/users", userRoutes);
 
 // Upload story
-app.post("/api/stories/upload", storyUpload.single("story"), async (req, res) => {
+app.post("/api/story/upload", storyUpload.single("story"), async (req, res) => {
   try {
     const { userId, username, profileUrl } = req.body;
     const story = new Story({
