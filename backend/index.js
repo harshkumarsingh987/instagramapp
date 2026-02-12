@@ -104,12 +104,13 @@ app.post("/api/auth/signup", async (req, res) => {
     });
 
     // ✅ Set cookie (optional but useful)
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+   res.cookie("token", token, {
+  httpOnly: true,
+  secure: false,     // ✅ MUST be false on localhost
+  sameSite: "lax",   // ✅ use "lax" for local dev
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
+;
 
     res.status(201).json({
       message: "Signup successful",
