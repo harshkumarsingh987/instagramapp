@@ -25,7 +25,9 @@ const userRoutes = require("./routes/user");
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
-BACKEND_URL = https://instagram-backend.onrender.com
+const BACKEND_URL =
+  process.env.BACKEND_URL || `http://localhost:${PORT}`;
+
 
 
 
@@ -34,11 +36,8 @@ BACKEND_URL = https://instagram-backend.onrender.com
 // ---------------------------
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://instagramapp-eclq.vercel.app"
-    ],
-    credentials: true,
+    origin: ["http://localhost:5173"], // ✅ your frontend URL
+    credentials: true,                 // ✅ allow cookies & credentials
   })
 );
 
