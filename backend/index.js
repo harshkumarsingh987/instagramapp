@@ -33,13 +33,10 @@ const BACKEND_URL =
 
 // ---------------------------
 // MIDDLEWARES
+
+app.use( cors({ origin: [ "http://localhost:5173", "https://instagramapp-eclq.vercel.app" ], credentials: true, }) );
 // ---------------------------
-app.use(
-  cors({
-    origin: ["http://localhost:5173"], // ✅ your frontend URL
-    credentials: true,                 // ✅ allow cookies & credentials
-  })
-);
+
 
 
 app.use(express.json());
